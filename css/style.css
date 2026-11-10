@@ -287,7 +287,14 @@ main { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .feedback.good { background: #dff5e8; color: #14653a; }
 .feedback.bad { background: #fde3e2; color: #96302d; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; }
 .feedback.bad b { font-size: 1.35rem; }
-.b-bottom { display: flex; justify-content: flex-end; margin-top: auto; padding-top: 8px; min-height: 76px; align-items: flex-end; }
+.b-bottom { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: auto; padding-top: 8px; min-height: 76px; align-items: flex-end; }
+
+.skill { padding: 6px 10px; }
+.skill i { font-style: normal; font-size: 0.78rem; color: var(--muted); margin-left: 4px; }
+.skill.on { background: #fff3c4; border-color: #e0a800; }
+.sp { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
+.sp i { width: 12px; height: 12px; border-radius: 50%; background: #e6e2f5; }
+.sp i.f { background: #f5b800; box-shadow: 0 0 6px #f5b80099; }
 
 /* ---------- 結算 ---------- */
 .result { padding-bottom: 32px; }

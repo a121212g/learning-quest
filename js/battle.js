@@ -3,6 +3,14 @@
   'use strict';
   let B = null; // 目前這場戰鬥的狀態
 
+  // 技能：答對一題得 1 點能量（最多 SP_MAX），用能量施放。等級到了自動學會。
+  const SP_MAX = 5;
+  G.SKILLS = [
+    { id: 'power', icon: '💥', name: '強力一擊', cost: 2, level: 1, desc: '這一題答對，傷害變 2 倍' },
+    { id: 'shield', icon: '🛡️', name: '護盾', cost: 2, level: 3, desc: '這一題答錯，不會扣血' },
+    { id: 'heal', icon: '💚', name: '治癒', cost: 3, level: 5, desc: '馬上回復 30 點血量', heal: 30 }
+  ];
+
   function nextQuestion() {
     B.q = G.Q.next(B.stage, B.used);
     B.used.add(B.q.key);
@@ -11,6 +19,8 @@
     B.phase = 'ask';
     B.fx = '';
     B.dmg = 0;
+    B.buff = {};      // 技能效果只管這一題
+    B.used2x = false; B.blocked = false;
     B.num += 1;
   }
 
@@ -23,7 +33,7 @@
       area: area, stage: stage,
       mMax: stage.monster.hp, mHp: stage.monster.hp,
       pMax: G.Player.maxHp(), pHp: G.Player.maxHp(),
-      combo: 0, maxCombo: 0, asked: 0, correct: 0, num: 0,
+      combo: 0, maxCombo: 0, asked: 0, correct: 0, num: 0, sp: 0,
       used: new Set(), startAt: Date.now()
     };
     nextQuestion();
@@ -62,6 +72,7 @@
     r.ups = G.Player.addXp(r.xp);
     r.level = s.level;
     r.opened = G.Save.pack().areas.filter((a) => a.unlockLevel > before && a.unlockLevel <= s.level);
+    r.skills = G.SKILLS.filter((k) => k.level > before && k.level <= s.level);
     G.Save.write();
     G.sfx(win ? (r.ups ? 'level' : 'win') : 'lose');
     B = null;
@@ -84,6 +95,8 @@
       const mult = 1 + 0.1 * Math.min(B.combo - 1, 5);
       // 每一擊最多打掉怪物五分之一的血，確保每關至少要答對 5 題
       B.dmg = Math.min(Math.round(base * mult), Math.ceil(B.mMax / 5));
+      if (B.buff.power) { B.dmg *= 2; B.used2x = true; } // 強力一擊可以超過上限
+      B.sp = Math.min(SP_MAX, B.sp + 1);
       B.mHp = Math.max(0, B.mHp - B.dmg);
       B.pHp = Math.min(B.pMax, B.pHp + G.Pets.bonus('heal'));
       B.phase = 'right'; B.fx = 'hit-mon';
@@ -93,6 +106,7 @@
     } else {
       B.combo = 0;
       B.dmg = Math.max(1, Math.round(B.stage.monster.atk * (1 - G.Pets.bonus('guard'))));
+      if (B.buff.shield) { B.dmg = 0; B.blocked = true; }
       B.pHp = Math.max(0, B.pHp - B.dmg);
       B.phase = 'wrong'; B.fx = 'hit-me';
       G.sfx('wrong');
@@ -141,6 +155,15 @@
     G.sfx('coin');
     G.refresh();
   };
+  G.actions['battle-skill'] = (d) => {
+    const k = G.SKILLS.filter((x) => x.id === d.id)[0];
+    if (!k || !skillReady(k)) return;
+    B.sp -= k.cost;
+    if (k.heal) { B.pHp = Math.min(B.pMax, B.pHp + k.heal); B.fx = 'heal'; }
+    else { B.buff[k.id] = true; B.fx = ''; }
+    G.sfx('coin');
+    G.refresh();
+  };
   G.actions['battle-flee'] = () => {
     G.confirm('要離開這場戰鬥嗎？這一關要重新挑戰喔。', '離開', () => {
       if (B) { addTime(); if (B.asked) G.Daily.markPlayed(); G.Save.write(); }
@@ -162,6 +185,21 @@
       resolve(B.q.choices[Number(e.key) - 1]);
     }
   });
+
+  function skillReady(k) {
+    if (!B || B.phase !== 'ask' || G.state.level < k.level || B.sp < k.cost || B.buff[k.id]) return false;
+    return !(k.heal && B.pHp >= B.pMax);
+  }
+
+  function skillsHtml() {
+    return G.SKILLS.map((k) => {
+      if (G.state.level < k.level) {
+        return '<button class="btn ghost sm skill" disabled title="' + k.desc + '">🔒 Lv' + k.level + '</button>';
+      }
+      return '<button class="btn ghost sm skill' + (B.buff[k.id] ? ' on' : '') + '" data-act="battle-skill" data-id="' + k.id + '"' +
+        (skillReady(k) ? '' : ' disabled') + ' title="' + k.desc + '">' + k.icon + ' ' + k.name + '<i>⚡' + k.cost + '</i></button>';
+    }).join('');
+  }
 
   function answersHtml() {
     const q = B.q, asking = B.phase === 'ask';
@@ -192,9 +230,9 @@
     const topic = pack.topics[q.topic];
     let feedback = '';
     if (B.phase === 'right') {
-      feedback = '<div class="feedback good">⭕ 答對了！' + (B.combo >= 2 ? '　🔥 ' + B.combo + ' 連擊' : '') + '</div>';
+      feedback = '<div class="feedback good">⭕ 答對了！' + (B.used2x ? '　💥 傷害 2 倍' : '') + (B.combo >= 2 ? '　🔥 ' + B.combo + ' 連擊' : '') + '</div>';
     } else if (B.phase === 'wrong') {
-      feedback = '<div class="feedback bad"><div>❌ 正確答案是 <b>' + G.esc(q.answerText) + '</b></div>' +
+      feedback = '<div class="feedback bad"><div>❌ 正確答案是 <b>' + G.esc(q.answerText) + '</b>' + (B.blocked ? '<br>🛡️ 護盾擋住了攻擊' : '') + '</div>' +
         '<button class="btn primary" data-act="battle-next">知道了</button></div>';
     }
     const canPotion = B.phase === 'ask' && s.potions > 0 && B.pHp < B.pMax;
@@ -205,10 +243,11 @@
 
       '<div class="b-field">' +
       '<div class="b-side' + (B.fx === 'hit-me' ? ' shake' : '') + (B.fx === 'heal' ? ' glow' : '') + '">' +
-      (B.fx === 'hit-me' ? '<span class="float bad">−' + B.dmg + '</span>' : '') +
+      (B.fx === 'hit-me' ? '<span class="float bad">' + (B.blocked ? '🛡️' : '−' + B.dmg) + '</span>' : '') +
       '<div class="b-ava">' + G.esc(s.avatar) + (pet ? '<span class="b-pet">' + pet.icon + '</span>' : '') + '</div>' +
       '<div class="b-name">' + G.esc(s.name) + '</div>' + G.bar(B.pHp, B.pMax, 'hp') +
-      '<small>❤️ ' + B.pHp + ' / ' + B.pMax + '</small></div>' +
+      '<small>❤️ ' + B.pHp + ' / ' + B.pMax + '</small>' +
+      '<div class="sp" aria-label="能量 ' + B.sp + ' / ' + SP_MAX + '">' + '<i class="f"></i>'.repeat(B.sp) + '<i></i>'.repeat(SP_MAX - B.sp) + '</div></div>' +
 
       '<div class="b-vs">' + (B.combo >= 2 ? '<span class="combo">🔥' + B.combo + '</span>' : 'VS') + '</div>' +
 
@@ -227,7 +266,7 @@
 
       answersHtml() + feedback +
 
-      '<div class="b-bottom"><button class="btn ghost sm" data-act="battle-potion"' + (canPotion ? '' : ' disabled') + '>🧪 藥水 ×' + s.potions + '</button></div>' +
+      '<div class="b-bottom">' + skillsHtml() + '<button class="btn ghost sm" data-act="battle-potion"' + (canPotion ? '' : ' disabled') + '>🧪 藥水 ×' + s.potions + '</button></div>' +
       '</div>';
   };
 
@@ -237,6 +276,7 @@
     const next = r.win && area.stages[i + 1];
     let extra = '';
     if (r.ups) extra += '<div class="card levelup">🎉 升級了！現在是 <b>Lv ' + r.level + '</b>，血量和攻擊力都提升了</div>';
+    (r.skills || []).forEach((k) => { extra += '<div class="card levelup">✨ 學會新技能 <b>' + k.icon + ' ' + k.name + '</b><div class="sub">' + k.desc + '（需要 ⚡' + k.cost + '）</div></div>'; });
     r.opened.forEach((a) => { extra += '<div class="card levelup">🗺️ 新區域開放：<b>' + a.icon + ' ' + G.esc(a.name) + '</b></div>'; });
     if (r.pet) {
       extra += '<div class="card levelup">🐾 收服了新夥伴 <b>' + r.pet.icon + ' ' + G.esc(r.pet.name) + '</b>！<div class="sub">' + G.Pets.bonusText(r.pet.bonus) + '</div></div>';
