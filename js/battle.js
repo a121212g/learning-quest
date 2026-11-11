@@ -24,10 +24,12 @@
     B.num += 1;
   }
 
-  function start(areaId, stageId) {
+  function start(areaId, stageId, hard) {
     const area = G.findArea(areaId);
-    const stage = area.stages.filter((s) => s.id === stageId)[0];
+    let stage = area.stages.filter((s) => s.id === stageId)[0];
     if (!stage) return;
+    // 進階版要先通過普通版
+    if (hard && (G.Save.gradeData().stars[stage.id] || 0) > 0) stage = G.hardStage(stage);
     G.closeModal();
     B = {
       area: area, stage: stage,
@@ -39,7 +41,7 @@
     nextQuestion();
     G.go('battle');
   }
-  G.actions['battle-start'] = (d) => start(d.area, d.stage);
+  G.actions['battle-start'] = (d) => start(d.area, d.stage, !!d.hard);
   G.Battle = { start: start, current: () => B };
 
   function addTime() {
@@ -239,7 +241,7 @@
 
     return '<div class="battle" style="--area:' + B.area.color + '">' +
       '<div class="b-top"><button class="btn ghost sm" data-act="battle-flee">✕ 離開</button>' +
-      '<b>' + (st.boss ? '👑 ' : '') + G.esc(st.name) + '</b><span>第 ' + B.num + ' 題</span></div>' +
+      '<b>' + (st.boss ? '👑 ' : '') + G.esc(st.name) + (st.hard ? ' <span class="tag hot">🔥 進階</span>' : '') + '</b><span>第 ' + B.num + ' 題</span></div>' +
 
       '<div class="b-field">' +
       '<div class="b-side' + (B.fx === 'hit-me' ? ' shake' : '') + (B.fx === 'heal' ? ' glow' : '') + '">' +
@@ -271,9 +273,11 @@
   };
 
   G.screens.result = (r) => {
-    const st = r.stage, area = r.area;
-    const i = area.stages.indexOf(st);
+    const st = r.stage, area = r.area, base = st.base || st;
+    const i = area.stages.indexOf(base);
     const next = r.win && area.stages[i + 1];
+    const hardBtn = r.win && !st.hard
+      ? '<button class="btn ghost" data-act="battle-start" data-area="' + area.id + '" data-stage="' + base.id + '" data-hard="1">🔥 挑戰進階版</button>' : '';
     let extra = '';
     if (r.ups) extra += '<div class="card levelup">🎉 升級了！現在是 <b>Lv ' + r.level + '</b>，血量和攻擊力都提升了</div>';
     (r.skills || []).forEach((k) => { extra += '<div class="card levelup">✨ 學會新技能 <b>' + k.icon + ' ' + k.name + '</b><div class="sub">' + k.desc + '（需要 ⚡' + k.cost + '）</div></div>'; });
@@ -285,7 +289,7 @@
     if (claim) extra += '<div class="card levelup">📜 有 ' + claim + ' 個每日任務獎勵可以領取</div>';
 
     const head = r.win
-      ? '<div class="big-icon bounce">🏆</div><h2>過關！</h2><div class="result-stars">' + G.starsHtml(r.stars) + '</div>'
+      ? '<div class="big-icon bounce">🏆</div><h2>' + (st.hard ? '🔥 進階過關！' : '過關！') + '</h2><div class="result-stars">' + G.starsHtml(r.stars) + '</div>'
       : '<div class="big-icon">💪</div><h2>差一點點！</h2><p class="hint">沒關係，答錯的題目已經記下來了，再挑戰一次會更厲害。</p>';
 
     return '<div class="page result"><main><div class="card center">' + head +
@@ -298,7 +302,8 @@
       '</div></div>' + extra +
       '<div class="col">' +
       (next ? '<button class="btn primary" data-act="battle-start" data-area="' + area.id + '" data-stage="' + next.id + '">下一關：' + G.esc(next.name) + ' ▶</button>' : '') +
-      '<button class="btn ' + (next ? 'ghost' : 'primary') + '" data-act="battle-start" data-area="' + area.id + '" data-stage="' + st.id + '">🔁 ' + (r.win ? '再玩一次' : '再挑戰一次') + '</button>' +
+      hardBtn +
+      '<button class="btn ' + (next ? 'ghost' : 'primary') + '" data-act="battle-start" data-area="' + area.id + '" data-stage="' + base.id + '"' + (st.hard ? ' data-hard="1"' : '') + '>🔁 ' + (r.win ? '再玩一次' : '再挑戰一次') + '</button>' +
       '<button class="btn ghost" data-act="nav" data-to="map">🗺️ 回地圖</button>' +
       '</div></main></div>';
   };

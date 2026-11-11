@@ -38,6 +38,21 @@
   }
   G.findArea = findArea;
 
+  // 進階版關卡：同一關換上更強的怪物。血量、攻擊、獎勵提高，題目難度加 1 級。
+  // 內容包可在關卡加 hard: { name, icon, hp, atk, xp, gold, plus } 個別指定，沒寫就用下面的倍率。
+  const HARD = { hp: 1.6, atk: 1.5, reward: 1.5, plus: 1 };
+  G.hardStage = (st) => {
+    const h = st.hard || {}, m = st.monster;
+    return Object.assign({}, st, {
+      id: st.id + '+', hard: true, base: st, plus: h.plus || HARD.plus,
+      xp: h.xp || Math.round(st.xp * HARD.reward), gold: h.gold || Math.round(st.gold * HARD.reward),
+      monster: Object.assign({}, m, {
+        name: h.name || '進階・' + m.name, icon: h.icon || m.icon,
+        hp: h.hp || Math.round(m.hp * HARD.hp / 5) * 5, atk: h.atk || Math.round(m.atk * HARD.atk)
+      })
+    });
+  };
+
   function stageOpen(area, i) {
     return i === 0 || (G.Save.gradeData().stars[area.stages[i - 1].id] || 0) > 0;
   }
@@ -69,7 +84,8 @@
           (open ? ' data-act="stage" data-area="' + area.id + '" data-stage="' + st.id + '"' : ' disabled') + '>' +
           '<span class="stage-icon">' + (open ? st.monster.icon : '🔒') + '</span>' +
           '<span class="stage-main"><b>' + (st.boss ? '👑 ' : (i + 1) + '. ') + G.esc(st.name) + '</b><small>' + G.esc(topics) + '</small></span>' +
-          (open ? stars(n) : '<small class="lock-note">先通過上一關</small>') + '</button>';
+          (open ? '<span class="star-col">' + stars(n) + (n ? '<span class="hard-stars">🔥' + stars(gd.stars[st.id + '+'] || 0) + '</span>' : '') + '</span>'
+            : '<small class="lock-note">先通過上一關</small>') + '</button>';
       }).join('') + '</div>';
     }
 
@@ -90,13 +106,25 @@
       ? '<div class="sub">🐾 已收服這隻夥伴</div>'
       : '<div class="sub">🐾 ' + (st.boss ? '打倒魔王一定能收服牠' : '打倒牠有機會收服成夥伴') + '</div>';
     G.sfx('tap');
+    const gd = G.Save.gradeData(), cleared = (gd.stars[st.id] || 0) > 0;
+    const card = (v, hard) => {
+      const locked = hard && !cleared;
+      return '<div class="variant' + (hard ? ' hard' : '') + (locked ? ' locked' : '') + '">' +
+        '<div class="v-icon">' + v.monster.icon + '</div>' +
+        '<b>' + (hard ? '🔥 進階' : '普通') + '</b>' +
+        '<div class="sub">' + G.esc(v.monster.name) + '</div>' +
+        '<div class="sub">❤️ ' + v.monster.hp + '　⚔️ ' + v.monster.atk + '</div>' +
+        '<div class="sub">' + (hard ? '題目難度 +' + v.plus : '題目依程度調整') + '</div>' +
+        '<div class="sub">✨' + v.xp + '　🪙' + v.gold + '</div>' +
+        stars(gd.stars[v.id] || 0) +
+        (locked ? '<button class="btn ghost" disabled>🔒 先通過普通</button>'
+          : '<button class="btn primary" data-act="battle-start" data-area="' + area.id + '" data-stage="' + st.id + '"' + (hard ? ' data-hard="1"' : '') + '>⚔️ 挑戰</button>') +
+        '</div>';
+    };
     G.modal(
-      '<div class="center"><div class="big-icon">' + st.monster.icon + '</div>' +
-      '<h3>' + G.esc(st.name) + '</h3>' +
-      '<div class="sub">對手：' + G.esc(st.monster.name) + '</div>' +
-      '<div class="sub">題目：' + G.esc(st.boss ? '這個區域的全部題型' : st.topics.map((t) => pack.topics[t].name).join('、')) + '</div>' +
-      '<div class="sub">過關獎勵：✨' + st.xp + ' 經驗　🪙' + st.gold + '</div>' + petLine + '</div>' +
-      '<div class="row"><button class="btn ghost" data-act="modal-close">返回</button>' +
-      '<button class="btn primary" data-act="battle-start" data-area="' + area.id + '" data-stage="' + st.id + '">⚔️ 開始挑戰</button></div>');
+      '<div class="center"><h3>' + G.esc(st.name) + '</h3>' +
+      '<div class="sub">題目：' + G.esc(st.boss ? '這個區域的全部題型' : st.topics.map((t) => pack.topics[t].name).join('、')) + '</div>' + petLine + '</div>' +
+      '<div class="variants">' + card(st, false) + card(G.hardStage(st), true) + '</div>' +
+      '<div class="row"><button class="btn ghost" data-act="modal-close">返回</button></div>');
   };
 })(window.G);

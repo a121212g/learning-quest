@@ -296,6 +296,19 @@ main { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
 .sp i { width: 12px; height: 12px; border-radius: 50%; background: #e6e2f5; }
 .sp i.f { background: #f5b800; box-shadow: 0 0 6px #f5b80099; }
 
+.star-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.hard-stars { font-size: 0.8rem; white-space: nowrap; }
+.hard-stars .stars { font-size: 0.85em; }
+.tag.hot { background: #ffe1d6; color: #b23a12; }
+.variants { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.variant { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+  padding: 12px 8px; border-radius: 16px; border: 2px solid var(--line); background: #fff; }
+.variant.hard { border-color: #f0a07f; background: #fff6f1; }
+.variant.locked { opacity: 0.6; }
+.variant .v-icon { font-size: 2.6rem; line-height: 1.1; }
+.variant.hard .v-icon { filter: drop-shadow(0 0 6px #ff6a2b); }
+.variant .btn { width: 100%; margin-top: 6px; }
+
 /* ---------- 結算 ---------- */
 .result { padding-bottom: 32px; }
 .result h2 { font-size: 1.9rem; }

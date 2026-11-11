@@ -169,7 +169,7 @@
         };
       }
       const topicId = G.pick(stage.topics);
-      const level = stage.boss ? (stage.level || 3) : this.level(topicId);
+      const level = (stage.boss ? (stage.level || 3) : this.level(topicId)) + (stage.plus || 0);
       return make(pack, topicId, level, used);
     },
 
@@ -219,9 +219,9 @@
         }
       }
 
-      // 難度調整：魔王關與錯題複習不列入
+      // 難度調整：魔王關、進階版與錯題複習不列入
       let change = '';
-      if (!stage.boss && !q.review) {
+      if (!stage.boss && !stage.hard && !q.review) {
         const d = gd.diff[q.topic] || (gd.diff[q.topic] = { level: START_LEVEL, recent: [] });
         d.recent.push(correct ? 1 : 0);
         if (d.recent.length > 10) d.recent.shift();
